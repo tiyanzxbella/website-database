@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Kontak - Diperlukan Akses</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 700px; margin: 40px auto; padding: 20px; background-color: #f4f7f6; color: #333; }
+        h1, h2 { color: #0056b3; }
+        #main-content { display: none; }
+        #login-container { text-align: center; padding: 50px; background-color: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        #form-container { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        #contact-list { list-style: none; padding: 0; }
+        #contact-list li { background-color: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+        .contact-name { font-weight: bold; }
+        .contact-phone { color: #555; }
+        input[type="text"], input[type="tel"] { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #cccccc; }
+    </style>
+</head>
+<body>
+
+    <!-- KONTEN UTAMA, AWALNYA DISEMBUNYIKAN -->
+    <div id="main-content">
+        <h1>Database Kontak Saya</h1>
+        <div id="form-container">
+            <h2>Tambah Kontak Baru</h2>
+            <input type="text" id="input-name" placeholder="Nama Kontak">
+            <input type="tel" id="input-phone" placeholder="Nomor Telepon">
+            <button id="add-button" onclick="addContact()">Tambah Kontak</button>
+        </div>
+        <h2>Daftar Kontak</h2>
+        <ul id="contact-list"></ul>
+    </div>
+
+    <!-- PESAN UNTUK MEMINTA PASSWORD -->
+    <div id="login-container">
+        <p>Akses Terbatas. Silakan masukkan kata sandi.</p>
+    </div>
+
+    <script>
+        // ===================================================================
+        // --- KONFIGURASI WAJIB DIISI ---
+        // Ganti dengan informasi Anda
+        const GITHUB_USERNAME = 'tiyanzxbella';
+        const GITHUB_REPO = 'website-database'; // Sesuaikan jika nama repo Anda berbeda
+        const GITHUB_FILE_PATH = 'database.json';
+        
+        // PENTING: Tempelkan token BARU yang sudah Anda salin dari GitHub di sini
+        const GITHUB_TOKEN = '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'; 
+        // -------------------------------------------------------------------
+        // ===================================================================
+
+        const API_URL = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`;
+
+        function authenticate() {
+            const password = prompt("Masukkan kata sandi untuk mengakses:");
+            if (password === 'tiyanzxbella') {
+                document.getElementById('main-content').style.display = 'block';
+                document.getElementById('login-container').style.display = 'none';
+                fetchContacts();
+            } else {
+                alert("Kata sandi salah! Akses ditolak.");
+                document.getElementById('login-container').innerHTML = '<p style="color: red;">Akses Ditolak. Silakan muat ulang halaman untuk mencoba lagi.</p>';
+            }
+        }
+
+        async function fetchContacts() {
+            const contactList = document.getElementById('contact-list');
+            contactList.innerHTML = '<li>Memuat data...</li>';
+            try {
+                const response = await fetch(API_URL, { headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3.raw' } });
+                if (!response.ok) throw new Error(`Gagal mengambil data: ${response.statusText}. Cek konfigurasi dan token.`);
+                const data = await response.json();
+                contactList.innerHTML = '';
+                if (!data.contacts || data.contacts.length === 0) {
+                    contactList.innerHTML = '<li>Belum ada kontak yang disimpan.</li>';
+                } else {
+                    data.contacts.forEach(contact => {
+                        const listItem = document.createElement('li');
+                        listItem.innerHTML = `<div><span class="contact-name">${contact.name}</span><br><span class="contact-phone">${contact.phone}</span></div>`;
+                        contactList.appendChild(listItem);
+                    });
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                contactList.innerHTML = `<li style="color: red;">Gagal memuat data. Pastikan token dan konfigurasi sudah benar. Cek console (F12) untuk detail.</li>`;
+            }
+        }
+
+        async function addContact() {
+            const name = document.getElementById('input-name').value;
+            const phone = document.getElementById('input-phone').value;
+            if (!name || !phone) { alert('Nama dan Nomor Telepon tidak boleh kosong!'); return; }
+
+            const button = document.getElementById('add-button');
+            button.textContent = 'Menyimpan...';
+            button.disabled = true;
+
+            try {
+                const getFileResponse = await fetch(API_URL, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
+                if (!getFileResponse.ok) throw new Error('Gagal mendapatkan file. Cek nama repo/file.');
+                const fileData = await getFileResponse.json();
+                const currentContent = JSON.parse(atob(fileData.content));
+                const currentSha = fileData.sha;
+                const newId = (currentContent.contacts.length > 0) ? Math.max(...currentContent.contacts.map(c => c.id)) + 1 : 1;
+                currentContent.contacts.push({ id: newId, name: name, phone: phone });
+                const updatedContent = btoa(JSON.stringify(currentContent, null, 2));
+
+                const updateResponse = await fetch(API_URL, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: `feat: Menambahkan kontak '${name}'`, content: updatedContent, sha: currentSha })
+                });
+
+                if (!updateResponse.ok) throw new Error(`Gagal mengupdate file: ${updateResponse.statusText}`);
+                alert('Kontak berhasil ditambahkan!');
+                document.getElementById('input-name').value = '';
+                document.getElementById('input-phone').value = '';
+                fetchContacts();
+            } catch (error) {
+                console.error('Error saat menambah kontak:', error);
+                alert(`Gagal menambah kontak. Lihat console (F12) untuk detail error.`);
+            } finally {
+                button.textContent = 'Tambah Kontak';
+                button.disabled = false;
+            }
+        }
+
+        window.onload = authenticate;
+    </script>
+</body>
+</html>
